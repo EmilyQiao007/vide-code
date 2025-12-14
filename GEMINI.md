@@ -1,0 +1,1 @@
+This folder has a frontend todo app, backend todo app for apis, database for sql schema files

@@ -1,0 +1,130 @@
+/* --- General Setup --- */
+body {
+    font-family: 'Poppins', sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    margin: 0;
+}
+
+main {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 2rem;
+    border-radius: 15px;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    width: 100%;
+    max-width: 500px;
+}
+
+h1 {
+    text-align: center;
+    color: #fff;
+    font-weight: 600;
+    margin-bottom: 2rem;
+}
+
+/* --- Floating Input Field --- */
+#item-form {
+    position: relative;
+    margin-bottom: 2rem;
+}
+
+#item-input {
+    width: 100%;
+    border: none;
+    background: rgba(255, 255, 255, 0.2);
+    padding: 1rem;
+    border-radius: 10px;
+    color: #fff;
+    font-size: 1rem;
+    outline: none;
+    transition: all 0.3s ease;
+    box-sizing: border-box; /* Ensures padding doesn't affect width */
+}
+
+#item-input::placeholder {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+#item-input:focus {
+    background: rgba(255, 255, 255, 0.3);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+button[type="submit"] {
+    display: none; /* Hide the old button, we can trigger submit with Enter key */
+}
+
+/* --- Task List --- */
+ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+li {
+    display: flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.15);
+    padding: 0.75rem 1rem;
+    border-radius: 10px;
+    margin-bottom: 0.75rem;
+    color: #fff;
+    transition: all 0.3s ease;
+}
+
+li.checked {
+    text-decoration: line-through;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+li.checked .checkbox {
+    background: #667eea;
+    border-color: #667eea;
+}
+
+li.checked .checkbox::after {
+    opacity: 1;
+}
+
+/* --- Custom Circular Checkbox --- */
+.checkbox {
+    width: 20px;
+    height: 20px;
+    min-width: 20px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.5);
+    margin-right: 1rem;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.checkbox::after {
+    content: '';
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: white;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+/* --- Sub-tasks --- */
+ul ul {
+    margin-top: 0.75rem;
+    margin-left: 1.5rem;
+    width: 100%;
+}
+
+ul ul li {
+    background: rgba(0, 0, 0, 0.1);
+    font-size: 0.9rem;
+}
