@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login</title>
+    <style>
+        body { font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; background-color: #f4f4f4; }
+        .login-container { background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); text-align: center; }
+        button { background-color: #4285F4; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-size: 16px; }
+        button:hover { background-color: #357ae8; }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <h1>Login</h1>
+        <button id="google-login">Sign in with Google</button>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBRVrKfFmJmQL07HB2_tyPk4mwcPQQqXdM",
+            authDomain: "emilyqiao-vibecoding.firebaseapp.com",
+            projectId: "emilyqiao-vibecoding",
+            storageBucket: "emilyqiao-vibecoding.firebasestorage.app",
+            messagingSenderId: "381599961996",
+            appId: "1:381599961996:web:9e87f662db6948fef77ca9",
+            measurementId: "G-BK6EVmMGBR"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const provider = new GoogleAuthProvider();
+
+        async function handleLogin() {
+            try {
+                await signInWithPopup(auth, provider);
+                window.location.href = '/dashboard';
+            } catch (error) {
+                console.error("Login Error:", error);
+                alert(error.message);
+            }
+        }
+
+        document.getElementById('google-login').addEventListener('click', handleLogin);
+    </script>
+</body>
+</html>

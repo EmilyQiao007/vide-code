@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <style>
+        :root {
+            --primary-color: #4285F4;
+            --background-color: #f7f9fc;
+            --card-background: #ffffff;
+            --text-color: #3c4043;
+            --subtle-text-color: #5f6368;
+            --border-color: #e0e0e0;
+            --shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            margin: 0; 
+            background-color: var(--background-color); 
+            color: var(--text-color);
+        }
+        #app-bar {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        #app-bar h1 { margin: 0; font-size: 1.5em; }
+        #app-bar #user-info { display: flex; align-items: center; }
+        #app-bar #user-email { margin-right: 15px; }
+        #app-bar #logout { background: #d93025; color: white; border: none; border-radius: 5px; padding: 8px 12px; cursor: pointer; }
+        #container { max-width: 900px; margin: 30px auto; padding: 0 20px; }
+        
+        form { background: var(--card-background); padding: 20px; border-radius: 8px; box-shadow: var(--shadow); margin-bottom: 30px; }
+        input[type="url"] { width: calc(100% - 110px); padding: 12px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 1em; }
+        form button { padding: 12px 20px; background-color: var(--primary-color); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 1em; float: right; }
+        
+        .link-card { 
+            background: var(--card-background); 
+            padding: 20px; 
+            border-radius: 8px; 
+            margin-bottom: 20px; 
+            box-shadow: var(--shadow);
+            word-wrap: break-word;
+        }
+        .link-card .url a { color: #1a0dab; text-decoration: none; font-weight: 600; font-size: 1.2em; }
+        .link-card .summary { margin-top: 10px; line-height: 1.5; }
+        .link-card .tags { margin-top: 15px; }
+        .link-card .tag { display: inline-block; padding: 5px 12px; border-radius: 15px; font-size: 0.8em; margin-right: 5px; margin-bottom: 5px; }
+        
+        .skeleton-card { background: var(--card-background); padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: var(--shadow); }
+        .skeleton-line { height: 20px; background-color: #e0e0e0; border-radius: 4px; margin-bottom: 10px; }
+        .skeleton-line.short { width: 60%; }
+        .skeleton-line.shimmer {
+            background-image: linear-gradient(90deg, #e0e0e0 0px, #f0f0f0 40px, #e0e0e0 80px);
+            background-size: 600px;
+            animation: shimmer 1.5s infinite linear;
+        }
+        @keyframes shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
+
+        #loader { text-align: center; padding: 50px; font-size: 1.2em; }
+
+        @media (max-width: 600px) {
+            #app-bar { flex-direction: column; align-items: flex-start; }
+            #app-bar #user-info { margin-top: 10px; }
+            #container { margin-top: 20px; }
+            form { display: flex; flex-direction: column; }
+            input[type="url"] { width: 100%; margin-bottom: 10px; }
+            form button { width: 100%; float: none; }
+        }
+    </style>
+</head>
+<body>
+    <div id="app-bar">
+        <h1>StashApp</h1>
+        <div id="user-info" style="display:none;">
+            <span id="user-email"></span>
+            <button id="logout">Sign Out</button>
+        </div>
+    </div>
+    
+    <div id="loader">
+        <h2>Loading...</h2>
+    </div>
+
+    <div id="container" style="display:none;">
+        <form id="add-link-form">
+            <h2>Add a New Link</h2>
+            <input type="url" id="url-input" placeholder="https://example.com" required>
+            <button type="submit">Add Link</button>
+        </form>
+
+        <h2>Your Links</h2>
+        <div id="links-container"></div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, query, where, onSnapshot, serverTimestamp, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBRVrKfFmJmQL07HB2_tyPk4mwcPQQqXdM",
+            authDomain: "emilyqiao-vibecoding.firebaseapp.com",
+            projectId: "emilyqiao-vibecoding",
+            storageBucket: "emilyqiao-vibecoding.firebasestorage.app",
+            messagingSenderId: "381599961996",
+            appId: "1:381599961996:web:9e87f662db6948fef77ca9",
+            measurementId: "G-BK6EVmMGBR"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        const loader = document.getElementById('loader');
+        const container = document.getElementById('container');
+        const linksContainer = document.getElementById('links-container');
+        const userInfo = document.getElementById('user-info');
+        const userEmailSpan = document.getElementById('user-email');
+
+        const tagColors = ['#f8bbd0', '#e1bee7', '#c5cae9', '#bbdefb', '#b2ebf2', '#c8e6c9', '#f0f4c3'];
+        const getTagColor = (tag) => {
+            let hash = 0;
+            for (let i = 0; i < tag.length; i++) {
+                hash = tag.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            return tagColors[Math.abs(hash) % tagColors.length];
+        };
+
+        onAuthStateChanged(auth, user => {
+            if (user) {
+                loader.style.display = 'none';
+                container.style.display = 'block';
+                userInfo.style.display = 'flex';
+                userEmailSpan.textContent = user.email;
+                
+                document.getElementById('add-link-form').addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const urlInput = document.getElementById('url-input');
+                    if (urlInput.value) {
+                        try {
+                            await addDoc(collection(db, "links"), {
+                                url: urlInput.value,
+                                userId: user.uid,
+                                createdAt: serverTimestamp(),
+                                status: 'pending'
+                            });
+                            urlInput.value = '';
+                        } catch (error) {
+                            console.error("Error adding document: ", error);
+                            alert("Failed to add link. Check Firestore rules.");
+                        }
+                    }
+                });
+
+                const q = query(collection(db, "links"), where("userId", "==", user.uid), orderBy("createdAt", "desc"));
+                onSnapshot(q, (snapshot) => {
+                    linksContainer.innerHTML = ''; 
+                    if (snapshot.empty) {
+                        linksContainer.innerHTML = '<p>No links found. Add one above!</p>';
+                        return;
+                    }
+
+                    snapshot.docs.forEach(doc => {
+                        const link = doc.data();
+                        const card = document.createElement('div');
+                        
+                        if (link.status === 'pending') {
+                            card.className = 'skeleton-card';
+                            card.innerHTML = `
+                                <div class="skeleton-line shimmer"></div>
+                                <div class="skeleton-line shimmer short"></div>
+                            `;
+                        } else {
+                            card.className = 'link-card';
+                            let details = `<div class="status">Status: ${link.status}</div>`;
+                            if (link.status === 'processed') {
+                                const tagsHTML = link.tags.map(tag => `<span class="tag" style="background-color:${getTagColor(tag)}">${tag}</span>`).join('');
+                                details = `
+                                    <p class="summary">${link.summary}</p>
+                                    <div class="tags">${tagsHTML}</div>
+                                `;
+                            } else if (link.status === 'failed') {
+                                details = `<div class="status error">Processing failed: ${link.error}</div>`;
+                            }
+                            card.innerHTML = `
+                                <div class="url"><a href="${link.url}" target="_blank">${link.url}</a></div>
+                                ${details}
+                            `;
+                        }
+                        linksContainer.appendChild(card);
+                    });
+                });
+            } else {
+                window.location.href = '/';
+            }
+        });
+
+        document.getElementById('logout').addEventListener('click', async () => {
+            try {
+                await signOut(auth);
+                window.location.href = '/';
+            } catch (error) {
+                console.error("Sign out error:", error);
+            }
+        });
+
+    </script>
+</body>
+</html>
