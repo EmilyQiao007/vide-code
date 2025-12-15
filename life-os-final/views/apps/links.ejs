@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stash - LifeOS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Poppins', sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <%- include('../partials/navbar') %>
+
+    <main class="max-w-4xl mx-auto px-4 py-8">
+        <h1 class="text-4xl font-bold text-center text-gray-800 mb-8">Stash Your Links</h1>
+
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+            <form id="add-link-form" class="flex items-center">
+                <input type="url" id="url-input" class="flex-grow border-b-2 border-gray-300 focus:outline-none focus:border-blue-500 pb-2" placeholder="https://example.com" required>
+                <button type="submit" id="add-link-btn" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg ml-4 hover:bg-blue-700 transition">Add Link</button>
+            </form>
+        </div>
+
+        <div id="links-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+    </main>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, query, where, onSnapshot, serverTimestamp, orderBy, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+          apiKey: "AIzaSyBRVrKfFmJmQL07HB2_tyPk4mwcPQQqXdM",
+          authDomain: "emilyqiao-vibecoding.firebaseapp.com",
+          projectId: "emilyqiao-vibecoding",
+          storageBucket: "emilyqiao-vibecoding.appspot.com",
+          messagingSenderId: "381599961996",
+          appId: "1:381599961996:web:9e87f662db6948fef77ca9",
+          measurementId: "G-BK6EVmMGBR"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        const addLinkForm = document.getElementById('add-link-form');
+        const urlInput = document.getElementById('url-input');
+        const addLinkBtn = document.getElementById('add-link-btn');
+        const linksContainer = document.getElementById('links-container');
+        
+        let currentUserId = null;
+        let linksUnsubscribe = null;
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUserId = user.uid;
+                if (linksUnsubscribe) linksUnsubscribe();
+                listenForLinks(currentUserId);
+            } else {
+                window.location.href = '/login';
+            }
+        });
+
+        function listenForLinks(userId) {
+            const linksRef = collection(db, 'links');
+            const q = query(linksRef, where("userId", "==", userId), orderBy("createdAt", "desc"));
+            
+            linksUnsubscribe = onSnapshot(q, (snapshot) => {
+                linksContainer.innerHTML = '';
+                if (snapshot.empty) {
+                    linksContainer.innerHTML = '<p class="text-gray-500 col-span-full text-center">No links stashed yet.</p>';
+                    return;
+                }
+                snapshot.docs.forEach(doc => {
+                    const linkData = { id: doc.id, ...doc.data() };
+                    const card = createLinkCard(linkData);
+                    linksContainer.appendChild(card);
+                });
+            });
+        }
+
+        const tagColors = ['#fecaca', '#fef08a', '#bbf7d0', '#bfdbfe', '#e9d5ff', '#fed7aa'];
+        const getTagColor = (tag) => {
+            let hash = 0;
+            for (let i = 0; i < tag.length; i++) {
+                hash = tag.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            return tagColors[Math.abs(hash) % tagColors.length];
+        };
+
+        function createLinkCard(link) {
+            const card = document.createElement('div');
+            card.className = 'bg-white rounded-lg shadow-md p-6 flex flex-col relative';
+            card.dataset.id = link.id;
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'delete-btn absolute top-2 right-2 text-red-500 hover:text-red-700';
+            deleteBtn.innerHTML = '&#10005;'; // A simple 'X' icon
+            card.appendChild(deleteBtn);
+
+            if (link.status === 'pending') {
+                card.innerHTML += `
+                    <div class="animate-pulse flex space-x-4">
+                        <div class="flex-1 space-y-4 py-1">
+                            <div class="h-4 bg-gray-200 rounded w-3/4"></div>
+                            <div class="space-y-2">
+                                <div class="h-4 bg-gray-200 rounded"></div>
+                                <div class="h-4 bg-gray-200 rounded w-5/6"></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else if (link.status === 'processed') {
+                const tagsHTML = (link.tags || []).map(tag => `<span class="inline-block rounded-full px-3 py-1 text-sm font-semibold text-gray-700 mr-2 mb-2" style="background-color:${getTagColor(tag)}">${tag}</span>`).join('');
+                card.innerHTML += `
+                    <div class="flex-grow">
+                        <a href="${link.url}" target="_blank" rel="noopener noreferrer" class="text-lg font-semibold text-blue-600 hover:underline break-all">${link.url}</a>
+                        <p class="text-gray-700 text-sm mt-2">${link.summary}</p>
+                    </div>
+                    <div class="pt-4 mt-auto">
+                        ${tagsHTML}
+                    </div>
+                `;
+            } else { // failed
+                 card.innerHTML += `
+                    <a href="${link.url}" target="_blank" rel="noopener noreferrer" class="text-lg font-semibold text-red-600 hover:underline break-all">${link.url}</a>
+                    <p class="text-red-500 text-sm mt-2">Processing failed: ${link.error || 'Could not generate summary.'}</p>
+                `;
+            }
+            return card;
+        }
+
+        linksContainer.addEventListener('click', async (e) => {
+            if (e.target.classList.contains('delete-btn')) {
+                const card = e.target.closest('[data-id]');
+                const linkId = card.dataset.id;
+                if (linkId) {
+                    try {
+                        await deleteDoc(doc(db, "links", linkId));
+                    } catch (error) {
+                        console.error("Error deleting document: ", error);
+                        alert("Failed to delete link.");
+                    }
+                }
+            }
+        });
+
+        addLinkForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const url = urlInput.value.trim();
+            if (!url || !currentUserId) return;
+
+            addLinkBtn.disabled = true;
+            addLinkBtn.textContent = 'Stashing...';
+            
+            let docRef;
+            try {
+                docRef = await addDoc(collection(db, "links"), {
+                    url: url,
+                    userId: currentUserId,
+                    createdAt: serverTimestamp(),
+                    status: 'pending'
+                });
+                urlInput.value = '';
+
+                const response = await fetch('/api/ai/summarize', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url }),
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'AI summary failed');
+                }
+                
+                const data = await response.json();
+                const tagsArray = data.tags ? data.tags.split(',').map(t => t.trim()) : [];
+
+                await updateDoc(doc(db, "links", docRef.id), {
+                    summary: data.summary,
+                    tags: tagsArray,
+                    status: 'processed'
+                });
+
+            } catch (error) {
+                console.error("Error processing link: ", error);
+                if (docRef) {
+                    await updateDoc(doc(db, "links", docRef.id), {
+                        status: 'failed',
+                        error: error.message
+                    });
+                }
+            } finally {
+                addLinkBtn.disabled = false;
+                addLinkBtn.textContent = 'Add Link';
+            }
+        });
+    </script>
+
+</body>
+</html>

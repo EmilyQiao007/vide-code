@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkmate - Todo App</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100">
+
+    <div id="loader" class="flex justify-center items-center h-screen">
+        <div class="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+    </div>
+
+    <div id="content" class="hidden max-w-lg mx-auto my-8 p-4 bg-white rounded-lg shadow-lg">
+        <a href="/hub" class="text-blue-500 hover:underline">&larr; Back to Hub</a>
+        <h1 class="text-3xl font-bold my-4">Checkmate Todo</h1>
+        
+        <form id="add-todo-form" class="flex mb-4">
+            <input type="text" id="todo-input" class="flex-grow p-2 border rounded-l-lg" placeholder="Add a new todo..." required>
+            <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white font-bold p-2 rounded-r-lg">Add</button>
+        </form>
+
+        <ul id="todo-list" class="space-y-2">
+            <!-- Todos will be rendered here -->
+        </ul>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js';
+        import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js';
+        import { 
+            getFirestore, 
+            collection, 
+            addDoc, 
+            onSnapshot, 
+            query, 
+            where, 
+            orderBy,
+            doc,
+            updateDoc,
+            deleteDoc,
+            serverTimestamp
+        } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js';
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBRVrKfFmJmQL07HB2_tyPk4mwcPQQqXdM",
+            authDomain: "emilyqiao-vibecoding.firebaseapp.com",
+            projectId: "emilyqiao-vibecoding",
+            storageBucket: "emilyqiao-vibecoding.firebasestorage.app",
+            messagingSenderId: "381599961996",
+            appId: "1:381599961996:web:9e87f662db6948fef77ca9",
+            measurementId: "G-BK6EVmMGBR"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const todosCol = collection(db, 'todos');
+
+        let currentUser;
+
+        onAuthStateChanged(auth, user => {
+            if (user) {
+                currentUser = user;
+                document.getElementById('loader').style.display = 'none';
+                document.getElementById('content').style.display = 'block';
+                subscribeToTodos();
+            } else {
+                window.location.href = '/';
+            }
+        });
+
+        const subscribeToTodos = () => {
+            const q = query(todosCol, where("userId", "==", currentUser.uid), orderBy("createdAt", "desc"));
+            onSnapshot(q, snapshot => {
+                const todoList = document.getElementById('todo-list');
+                todoList.innerHTML = '';
+                snapshot.forEach(doc => {
+                    renderTodo(doc);
+                });
+            });
+        };
+
+        const renderTodo = (doc) => {
+            const todo = doc.data();
+            const li = document.createElement('li');
+            li.className = `flex items-center p-2 rounded ${todo.isDone ? 'bg-green-100' : ''}`;
+            li.innerHTML = `
+                <span class="flex-grow cursor-pointer ${todo.isDone ? 'line-through text-gray-500' : ''}">${todo.text}</span>
+                <button class="text-red-500 hover:text-red-700 font-bold ml-2">Delete</button>
+            `;
+
+            li.querySelector('span').addEventListener('click', () => toggleTodo(doc.id, todo.isDone));
+            li.querySelector('button').addEventListener('click', () => deleteTodo(doc.id));
+
+            document.getElementById('todo-list').appendChild(li);
+        };
+        
+        const addTodo = async (text) => {
+            await addDoc(todosCol, {
+                text,
+                isDone: false,
+                userId: currentUser.uid,
+                createdAt: serverTimestamp()
+            });
+        };
+
+        const toggleTodo = async (id, isDone) => {
+            const todoDoc = doc(db, 'todos', id);
+            await updateDoc(todoDoc, { isDone: !isDone });
+        };
+
+        const deleteTodo = async (id) => {
+            const todoDoc = doc(db, 'todos', id);
+            await deleteDoc(todoDoc);
+        };
+        
+        document.getElementById('add-todo-form').addEventListener('submit', e => {
+            e.preventDefault();
+            const input = document.getElementById('todo-input');
+            if (input.value.trim()) {
+                addTodo(input.value.trim());
+                input.value = '';
+            }
+        });
+
+    </script>
+</body>
+</html>

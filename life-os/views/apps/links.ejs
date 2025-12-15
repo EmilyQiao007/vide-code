@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stash - Link Aggregator</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100">
+
+    <div id="loader" class="flex justify-center items-center h-screen">
+        <div class="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+    </div>
+
+    <div id="content" class="hidden max-w-2xl mx-auto my-8 p-4 bg-white rounded-lg shadow-lg">
+        <a href="/hub" class="text-blue-500 hover:underline">&larr; Back to Hub</a>
+        <h1 class="text-3xl font-bold my-4">Stash Link Aggregator</h1>
+        
+        <form id="add-link-form" class="flex mb-4">
+            <input type="url" id="link-input" class="flex-grow p-2 border rounded-l-lg" placeholder="https://example.com" required>
+            <button type="submit" class="bg-green-500 hover:bg-green-600 text-white font-bold p-2 rounded-r-lg">Stash</button>
+        </form>
+
+        <ul id="link-list" class="space-y-2">
+            <!-- Links will be rendered here -->
+        </ul>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js';
+        import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js';
+        import { 
+            getFirestore, 
+            collection, 
+            addDoc, 
+            onSnapshot, 
+            query, 
+            where, 
+            orderBy,
+            serverTimestamp
+        } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js';
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBRVrKfFmJmQL07HB2_tyPk4mwcPQQqXdM",
+            authDomain: "emilyqiao-vibecoding.firebaseapp.com",
+            projectId: "emilyqiao-vibecoding",
+            storageBucket: "emilyqiao-vibecoding.firebasestorage.app",
+            messagingSenderId: "381599961996",
+            appId: "1:381599961996:web:9e87f662db6948fef77ca9",
+            measurementId: "G-BK6EVmMGBR"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const linksCol = collection(db, 'links');
+
+        let currentUser;
+
+        onAuthStateChanged(auth, user => {
+            if (user) {
+                currentUser = user;
+                document.getElementById('loader').style.display = 'none';
+                document.getElementById('content').style.display = 'block';
+                subscribeToLinks();
+            } else {
+                window.location.href = '/';
+            }
+        });
+
+        const subscribeToLinks = () => {
+            const q = query(linksCol, where("userId", "==", currentUser.uid), orderBy("createdAt", "desc"));
+            onSnapshot(q, snapshot => {
+                const linkList = document.getElementById('link-list');
+                linkList.innerHTML = '';
+                snapshot.forEach(doc => {
+                    renderLink(doc.data());
+                });
+            });
+        };
+
+        const renderLink = (link) => {
+            const li = document.createElement('li');
+            li.className = 'p-3 bg-gray-50 rounded-lg shadow-sm';
+            li.innerHTML = `
+                <div class="font-semibold text-blue-600">${link.url}</div>
+                <div class="text-sm text-gray-500">Status: <span class="font-medium text-yellow-600">${link.status}</span></div>
+                ${link.summary ? `<p class="mt-2 text-gray-700">${link.summary}</p>` : ''}
+            `;
+            document.getElementById('link-list').appendChild(li);
+        };
+        
+        const addLink = async (url) => {
+            await addDoc(linksCol, {
+                url,
+                status: 'pending',
+                summary: '',
+                tags: [],
+                userId: currentUser.uid,
+                createdAt: serverTimestamp()
+            });
+        };
+        
+        document.getElementById('add-link-form').addEventListener('submit', e => {
+            e.preventDefault();
+            const input = document.getElementById('link-input');
+            if (input.value.trim()) {
+                addLink(input.value.trim());
+                input.value = '';
+            }
+        });
+
+    </script>
+</body>
+</html>

@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkmate - LifeOS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Poppins', sans-serif; }
+        .checkbox {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #ccc;
+            border-radius: 50%;
+            cursor: pointer;
+            margin-right: 15px;
+            flex-shrink: 0;
+        }
+        li.checked .checkbox {
+            background-color: #4ade80; /* green-400 */
+            border-color: #4ade80;
+        }
+        li.checked span {
+            text-decoration: line-through;
+            color: #9ca3af; /* gray-400 */
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <%- include('../partials/navbar') %>
+
+    <main class="max-w-3xl mx-auto px-4 py-8">
+        <h1 class="text-4xl font-bold text-center text-gray-800 mb-8">What's the plan for today?</h1>
+
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-3">AI Magic Suggest ✨</h2>
+            <textarea id="ai-context" class="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500" placeholder="e.g., 'My goal today is to launch the new marketing campaign.'"></textarea>
+            <button id="suggest-btn" class="mt-3 bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 transition w-full">Get Suggestions</button>
+            <div id="suggestions" class="mt-4 text-sm text-gray-600"></div>
+        </div>
+        
+        <div class="bg-white rounded-lg shadow-lg p-6">
+            <form id="item-form" class="flex items-center">
+                <input type="text" id="item-input" class="flex-grow border-b-2 border-gray-300 focus:outline-none focus:border-blue-500 pb-2" placeholder="Add a new task..." required>
+                <button type="submit" class="bg-green-500 text-white font-bold py-2 px-4 rounded-lg ml-4 hover:bg-green-600 transition">Add</button>
+            </form>
+            <ul id="item-list" class="mt-6"></ul>
+        </div>
+    </main>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, doc, deleteDoc, query, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+          apiKey: "AIzaSyBRVrKfFmJmQL07HB2_tyPk4mwcPQQqXdM",
+          authDomain: "emilyqiao-vibecoding.firebaseapp.com",
+          projectId: "emilyqiao-vibecoding",
+          storageBucket: "emilyqiao-vibecoding.appspot.com",
+          messagingSenderId: "381599961996",
+          appId: "1:381599961996:web:9e87f662db6948fef77ca9",
+          measurementId: "G-BK6EVmMGBR"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        const itemForm = document.getElementById('item-form');
+        const itemInput = document.getElementById('item-input');
+        const itemList = document.getElementById('item-list');
+        const suggestBtn = document.getElementById('suggest-btn');
+        const aiContext = document.getElementById('ai-context');
+        const suggestionsDiv = document.getElementById('suggestions');
+
+        let currentUserId = null;
+        let todosUnsubscribe = null;
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUserId = user.uid;
+                if(todosUnsubscribe) todosUnsubscribe();
+                listenForTodos(currentUserId);
+            } else {
+                window.location.href = '/login';
+            }
+        });
+
+        function listenForTodos(userId) {
+            const todosRef = collection(db, 'todos');
+            const q = query(todosRef, where("userId", "==", userId));
+            
+            todosUnsubscribe = onSnapshot(q, (snapshot) => {
+                const todos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderTodos(todos);
+            });
+        }
+        
+        function renderTodos(todos) {
+            itemList.innerHTML = '';
+            todos.forEach(todo => {
+                const li = createListItem(todo.text, todo.id, todo.isDone);
+                itemList.appendChild(li);
+            });
+        }
+
+        function createListItem(text, id, isDone) {
+            const li = document.createElement('li');
+            li.dataset.id = id;
+            li.className = `flex items-center py-3 border-b border-gray-200 ${isDone ? 'checked' : ''}`;
+            
+            const checkbox = document.createElement('div');
+            checkbox.className = 'checkbox';
+            
+            const span = document.createElement('span');
+            span.textContent = text;
+            span.className = 'flex-grow';
+
+            li.appendChild(checkbox);
+            li.appendChild(span);
+            return li;
+        }
+
+        async function addTodo(event) {
+            event.preventDefault();
+            const text = itemInput.value.trim();
+            if (!text || !currentUserId) return;
+
+            try {
+                await addDoc(collection(db, 'todos'), {
+                    text: text,
+                    isDone: false,
+                    userId: currentUserId,
+                    createdAt: new Date()
+                });
+                itemInput.value = '';
+            } catch (error) {
+                console.error("Error adding document: ", error);
+            }
+        }
+        
+        async function handleItemClick(event) {
+            if (event.target.classList.contains('checkbox')) {
+                const li = event.target.parentElement;
+                const todoId = li.dataset.id;
+                try {
+                    await deleteDoc(doc(db, "todos", todoId));
+                } catch (error) {
+                    console.error("Error deleting document: ", error);
+                }
+            }
+        }
+
+        async function getAiSuggestions() {
+            const context = aiContext.value.trim();
+            if (!context) return;
+            
+            suggestBtn.disabled = true;
+            suggestBtn.textContent = 'Thinking...';
+            suggestionsDiv.innerHTML = '';
+
+            try {
+                const response = await fetch('/api/ai/suggest', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ context }),
+                });
+
+                if (!response.ok) throw new Error('AI suggestion failed');
+
+                const data = await response.json();
+                
+                if (data.suggestions && data.suggestions.length > 0) {
+                   suggestionsDiv.innerHTML = '<strong>Suggestions:</strong> ';
+                   data.suggestions.forEach(suggestionText => {
+                        const suggestionEl = document.createElement('button');
+                        suggestionEl.textContent = suggestionText;
+                        suggestionEl.className = 'bg-gray-200 text-gray-700 px-2 py-1 rounded-full text-xs mr-2 mb-2 hover:bg-blue-200';
+                        suggestionEl.onclick = () => {
+                            itemInput.value = suggestionText;
+                        };
+                        suggestionsDiv.appendChild(suggestionEl);
+                   });
+                }
+            } catch (error) {
+                console.error('Error getting AI suggestions:', error);
+                suggestionsDiv.innerHTML = '<span class="text-red-500">Could not fetch suggestions.</span>';
+            } finally {
+                suggestBtn.disabled = false;
+                suggestBtn.textContent = 'Get Suggestions';
+            }
+        }
+
+        itemForm.addEventListener('submit', addTodo);
+        itemList.addEventListener('click', handleItemClick);
+        suggestBtn.addEventListener('click', getAiSuggestions);
+
+    </script>
+</body>
+</html>
